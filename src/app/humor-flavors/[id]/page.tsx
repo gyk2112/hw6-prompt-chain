@@ -8,15 +8,7 @@ import Link from 'next/link'
 // Columns to skip in dynamic forms
 const META_COLS = ['id', 'humor_flavor_id', 'created_at', 'updated_at', 'created_datetime_utc', 'updated_datetime_utc', 'modified_datetime_utc', 'created_by_user_id', 'modified_by_user_id']
 const LONG_COLS = ['system_prompt', 'user_prompt', 'prompt', 'description', 'content', 'instructions', 'template']
-// Possible names for the ordering column
-const ORDER_COL_CANDIDATES = ['step_order', 'order_index', 'step_number', 'position', 'order']
-
-function detectOrderCol(cols: string[]): string {
-  for (const c of ORDER_COL_CANDIDATES) {
-    if (cols.includes(c)) return c
-  }
-  return cols[0] ?? 'step_order'
-}
+const ORDER_COL = 'order_by'
 
 interface Flavor {
   id: string
@@ -44,7 +36,6 @@ export default function FlavorDetailPage() {
   // Steps state
   const [steps, setSteps] = useState<Step[]>([])
   const [stepCols, setStepCols] = useState<string[]>([])
-  const [orderCol, setOrderCol] = useState<string>('step_order')
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
   const [editStepForm, setEditStepForm] = useState<Record<string, any>>({})
   const [showCreateStep, setShowCreateStep] = useState(false)
@@ -92,14 +83,12 @@ export default function FlavorDetailPage() {
 
     if (rows.length > 0) {
       const allCols = Object.keys(rows[0])
-      const detected = detectOrderCol(allCols)
-      setOrderCol(detected)
       setStepCols(allCols)
-      const sorted = [...rows].sort((a, b) => (a[detected] ?? 0) - (b[detected] ?? 0))
+      const sorted = [...rows].sort((a, b) => (a[ORDER_COL] ?? 0) - (b[ORDER_COL] ?? 0))
       setSteps(sorted)
 
       // Build blank create form
-      const editableCols = allCols.filter((c) => !META_COLS.includes(c) && c !== detected)
+      const editableCols = allCols.filter((c) => !META_COLS.includes(c) && c !== ORDER_COL)
       const blank: Record<string, any> = {}
       editableCols.forEach((c) => {
         blank[c] = typeof rows[0][c] === 'boolean' ? false : ''
@@ -108,7 +97,7 @@ export default function FlavorDetailPage() {
     } else {
       setSteps([])
       // Default blank form for create
-      setCreateStepForm({ system_prompt: '', [detectOrderCol([])]: 1 })
+      setCreateStepForm({ system_prompt: '', [ORDER_COL]: 1 })
     }
   }, [flavorId])
 
@@ -143,7 +132,7 @@ export default function FlavorDetailPage() {
   }
 
   // Step CRUD
-  const editableCols = stepCols.filter((c) => !META_COLS.includes(c) && c !== orderCol)
+  const editableCols = stepCols.filter((c) => !META_COLS.includes(c) && c !== ORDER_COL)
 
   const startEditStep = (step: Step) => {
     setEditingStepId(step.id)
@@ -167,11 +156,11 @@ export default function FlavorDetailPage() {
   const createStep = async () => {
     setSaving(true)
     const nextOrder = steps.length > 0
-      ? Math.max(...steps.map((s) => s[orderCol] ?? 0)) + 1
+      ? Math.max(...steps.map((s) => s[ORDER_COL] ?? 0)) + 1
       : 1
     const payload: Record<string, any> = {
       humor_flavor_id: flavorId,
-      [orderCol]: nextOrder,
+      [ORDER_COL]: nextOrder,
       created_by_user_id: userId,
       modified_by_user_id: userId,
       ...createStepForm,
@@ -205,13 +194,13 @@ export default function FlavorDetailPage() {
 
     const stepA = steps[index]
     const stepB = steps[targetIndex]
-    const orderA = stepA[orderCol]
-    const orderB = stepB[orderCol]
+    const orderA = stepA[ORDER_COL]
+    const orderB = stepB[ORDER_COL]
 
     setSaving(true)
     const [r1, r2] = await Promise.all([
-      supabase.from('humor_flavor_steps').update({ [orderCol]: orderB, modified_by_user_id: userId }).eq('id', stepA.id),
-      supabase.from('humor_flavor_steps').update({ [orderCol]: orderA, modified_by_user_id: userId }).eq('id', stepB.id),
+      supabase.from('humor_flavor_steps').update({ [ORDER_COL]: orderB, modified_by_user_id: userId }).eq('id', stepA.id),
+      supabase.from('humor_flavor_steps').update({ [ORDER_COL]: orderA, modified_by_user_id: userId }).eq('id', stepB.id),
     ])
     if (r1.error) setError(r1.error.message)
     else if (r2.error) setError(r2.error.message)
@@ -454,7 +443,7 @@ export default function FlavorDetailPage() {
                       {index + 1}
                     </span>
                     <span className="text-[10px] text-[#aaa] dark:text-[#555] tracking-widest uppercase">
-                      Step {step[orderCol] ?? index + 1}
+                      Step {step[ORDER_COL] ?? index + 1}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
