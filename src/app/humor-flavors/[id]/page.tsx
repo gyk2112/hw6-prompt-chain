@@ -97,7 +97,7 @@ export default function FlavorDetailPage() {
     } else {
       setSteps([])
       // Default blank form for create
-      setCreateStepForm({ system_prompt: '', [ORDER_COL]: 1 })
+      setCreateStepForm({ llm_system_prompt: '', llm_user_prompt: '', [ORDER_COL]: 1 })
     }
   }, [flavorId])
 
