@@ -7,7 +7,7 @@ import Link from 'next/link'
 
 // Columns to skip in dynamic forms
 const META_COLS = ['id', 'humor_flavor_id', 'created_at', 'updated_at', 'created_datetime_utc', 'updated_datetime_utc', 'modified_datetime_utc', 'created_by_user_id', 'modified_by_user_id']
-const LONG_COLS = ['system_prompt', 'user_prompt', 'prompt', 'description', 'content', 'instructions', 'template']
+const LONG_COLS = ['llm_system_prompt', 'llm_user_prompt', 'prompt', 'description', 'content', 'instructions', 'template']
 const ORDER_COL = 'order_by'
 
 interface Flavor {
@@ -96,8 +96,19 @@ export default function FlavorDetailPage() {
       setCreateStepForm(blank)
     } else {
       setSteps([])
-      // Default blank form for create
-      setCreateStepForm({ llm_system_prompt: '', llm_user_prompt: '', [ORDER_COL]: 1 })
+      // No rows yet — seed cols and defaults from known schema
+      setStepCols(['llm_input_type_id', 'llm_output_type_id', 'llm_model_id', 'humor_flavor_step_type_id', 'llm_temperature', 'llm_system_prompt', 'llm_user_prompt', 'description'])
+      setCreateStepForm({
+        llm_input_type_id: 1,
+        llm_output_type_id: 1,
+        llm_model_id: 6,
+        humor_flavor_step_type_id: 3,
+        llm_temperature: 0.7,
+        llm_system_prompt: '',
+        llm_user_prompt: '',
+        description: '',
+        [ORDER_COL]: 1,
+      })
     }
   }, [flavorId])
 
@@ -400,26 +411,10 @@ export default function FlavorDetailPage() {
             <div className="text-[10px] text-[#aaa] dark:text-[#444] tracking-[0.3em] uppercase">
               New Step (will be added as step {steps.length + 1})
             </div>
-            {editableCols.length > 0 ? (
-              editableCols.map((col) =>
-                renderStepField(col, createStepForm[col], (v) =>
-                  setCreateStepForm({ ...createStepForm, [col]: v })
-                )
+            {editableCols.map((col) =>
+              renderStepField(col, createStepForm[col], (v) =>
+                setCreateStepForm({ ...createStepForm, [col]: v })
               )
-            ) : (
-              // Fallback if no steps exist yet — show basic prompt field
-              <div>
-                <label className="text-[10px] text-[#888] dark:text-[#444] tracking-widest uppercase block mb-1">
-                  System Prompt
-                </label>
-                <textarea
-                  value={createStepForm.system_prompt ?? ''}
-                  onChange={(e) => setCreateStepForm({ ...createStepForm, system_prompt: e.target.value })}
-                  rows={5}
-                  className={`${inputCls} resize-y`}
-                  placeholder="Enter the LLM instruction for this step..."
-                />
-              </div>
             )}
             <button onClick={createStep} disabled={saving} className={btnPrimary}>
               {saving ? 'Adding...' : 'Add Step'}
