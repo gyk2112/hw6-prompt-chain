@@ -43,11 +43,12 @@ export default function FlavorDetailPage() {
 
   // Test runner state
   const [testImageUrl, setTestImageUrl] = useState('')
+  const [testImageId, setTestImageId] = useState<string | null>(null)
   const [testImages, setTestImages] = useState<any[]>([])
   const [testLoading, setTestLoading] = useState(false)
   const [testResult, setTestResult] = useState<any>(null)
   const [testError, setTestError] = useState<string | null>(null)
-  const [apiEndpoint, setApiEndpoint] = useState('https://api.almostcrackd.ai/api/generate')
+  const [apiEndpoint, setApiEndpoint] = useState('https://api.almostcrackd.ai/pipeline/generate-captions')
   const [showApiConfig, setShowApiConfig] = useState(false)
 
   // General state
@@ -221,8 +222,8 @@ export default function FlavorDetailPage() {
 
   // Test runner
   const runTest = async () => {
-    if (!testImageUrl.trim()) {
-      setTestError('Please enter an image URL.')
+    if (!testImageId) {
+      setTestError('Please select a test image.')
       return
     }
     setTestLoading(true)
@@ -240,18 +241,20 @@ export default function FlavorDetailPage() {
             : {}),
         },
         body: JSON.stringify({
-          humor_flavor_id: flavorId,
-          image_url: testImageUrl.trim(),
+          imageId: testImageId,
+          humorFlavorId: flavorId,
         }),
       })
-      const json = await response.json()
+      const text = await response.text()
+      let json: any = null
+      try { json = JSON.parse(text) } catch { /* not JSON */ }
       if (!response.ok) {
-        setTestError(json?.error ?? json?.message ?? `HTTP ${response.status}`)
+        setTestError(json?.error || json?.message || text || `HTTP ${response.status}`)
       } else {
-        setTestResult(json)
+        setTestResult(json ?? text)
       }
     } catch (err: any) {
-      setTestError(err.message ?? 'Request failed')
+      setTestError(err.message || 'Request failed')
     }
     setTestLoading(false)
   }
@@ -574,35 +577,26 @@ export default function FlavorDetailPage() {
           {/* Test image selection */}
           <div>
             <label className="text-[10px] text-[#888] dark:text-[#444] tracking-widest uppercase block mb-2">
-              Test Image URL
+              Test Image
             </label>
-            <input
-              value={testImageUrl}
-              onChange={(e) => setTestImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-              className={inputCls}
-            />
-            {testImages.length > 0 && (
-              <div className="mt-3">
-                <div className="text-[9px] text-[#bbb] dark:text-[#444] tracking-widest uppercase mb-2">
-                  Or pick from test images
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {testImages.map((img) => (
-                    <button
-                      key={img.id}
-                      onClick={() => setTestImageUrl(img.url)}
-                      className={`border text-[10px] tracking-widest uppercase px-2 py-1 transition-all ${
-                        testImageUrl === img.url
-                          ? 'border-[#0a0a0a] dark:border-white text-[#0a0a0a] dark:text-white bg-[#0a0a0a]/5 dark:bg-white/10'
-                          : 'border-[#ddd] dark:border-[#333] text-[#aaa] dark:text-[#555] hover:border-[#0a0a0a] dark:hover:border-white hover:text-[#0a0a0a] dark:hover:text-white'
-                      }`}
-                    >
-                      Image {img.id.slice(0, 6)}
-                    </button>
-                  ))}
-                </div>
+            {testImages.length > 0 ? (
+              <div className="flex gap-2 flex-wrap">
+                {testImages.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => { setTestImageUrl(img.url); setTestImageId(img.id) }}
+                    className={`border text-[10px] tracking-widest uppercase px-2 py-1 transition-all ${
+                      testImageId === img.id
+                        ? 'border-[#0a0a0a] dark:border-white text-[#0a0a0a] dark:text-white bg-[#0a0a0a]/5 dark:bg-white/10'
+                        : 'border-[#ddd] dark:border-[#333] text-[#aaa] dark:text-[#555] hover:border-[#0a0a0a] dark:hover:border-white hover:text-[#0a0a0a] dark:hover:text-white'
+                    }`}
+                  >
+                    Image {img.id.slice(0, 6)}
+                  </button>
+                ))}
               </div>
+            ) : (
+              <p className="text-xs text-[#aaa] dark:text-[#444]">No test images available.</p>
             )}
           </div>
 
@@ -619,7 +613,7 @@ export default function FlavorDetailPage() {
 
           <button
             onClick={runTest}
-            disabled={testLoading || !testImageUrl.trim() || steps.length === 0}
+            disabled={testLoading || !testImageId || steps.length === 0}
             className={`${btnPrimary} px-6 py-2`}
           >
             {testLoading ? 'Generating...' : steps.length === 0 ? 'Add steps first' : 'Generate Captions'}
