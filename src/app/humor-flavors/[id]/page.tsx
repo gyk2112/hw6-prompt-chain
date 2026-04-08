@@ -47,11 +47,8 @@ export default function FlavorDetailPage() {
   const [testImages, setTestImages] = useState<any[]>([])
   const [testFile, setTestFile] = useState<File | null>(null)
   const [testLoading, setTestLoading] = useState(false)
-  const [testStatus, setTestStatus] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<any>(null)
   const [testError, setTestError] = useState<string | null>(null)
-  const [apiBase, setApiBase] = useState('https://api.almostcrackd.ai')
-  const [showApiConfig, setShowApiConfig] = useState(false)
 
   // General state
   const [loading, setLoading] = useState(true)
@@ -233,81 +230,34 @@ export default function FlavorDetailPage() {
     setTestError(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-
-      let imageId: string
+      let body: Record<string, any> = { humorFlavorId: flavorId }
 
       if (testFile) {
-        // Step 1: Generate presigned URL
-        setTestStatus('Generating upload URL...')
-        const presignedRes = await fetch(`${apiBase}/pipeline/generate-presigned-url`, {
-          method: 'POST',
-          headers: { ...authHeader, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contentType: testFile.type }),
+        // Convert file to base64 data URL for server route
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(testFile)
         })
-        if (!presignedRes.ok) {
-          const t = await presignedRes.text()
-          throw new Error(`Presigned URL failed: ${t}`)
-        }
-        const { presignedUrl, cdnUrl } = await presignedRes.json()
-
-        // Step 2: Upload image bytes
-        setTestStatus('Uploading image...')
-        await fetch(presignedUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': testFile.type },
-          body: testFile,
-        })
-
-        // Step 3: Register image URL
-        setTestStatus('Registering image...')
-        const registerRes = await fetch(`${apiBase}/pipeline/upload-image-from-url`, {
-          method: 'POST',
-          headers: { ...authHeader, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: cdnUrl, isCommonUse: false }),
-        })
-        if (!registerRes.ok) {
-          const t = await registerRes.text()
-          throw new Error(`Image registration failed: ${t}`)
-        }
-        const { imageId: registeredId } = await registerRes.json()
-        imageId = registeredId
+        body.imageFile = dataUrl
       } else {
-        // Re-register the existing image URL to get a fresh pipeline imageId
-        setTestStatus('Registering image...')
-        const registerRes = await fetch(`${apiBase}/pipeline/upload-image-from-url`, {
-          method: 'POST',
-          headers: { ...authHeader, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: testImageUrl, isCommonUse: false }),
-        })
-        if (!registerRes.ok) {
-          const t = await registerRes.text()
-          throw new Error(`Image registration failed: ${t}`)
-        }
-        const { imageId: registeredId } = await registerRes.json()
-        imageId = registeredId
+        body.imageUrl = testImageUrl
       }
 
-      // Step 4: Generate captions
-      setTestStatus('Generating captions...')
-      const captionsRes = await fetch(`${apiBase}/pipeline/generate-captions`, {
+      const res = await fetch('/api/generate-captions', {
         method: 'POST',
-        headers: { ...authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageId, humorFlavorId: flavorId }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
-      const text = await captionsRes.text()
-      let json: any = null
-      try { json = JSON.parse(text) } catch { /* not JSON */ }
-      if (!captionsRes.ok) {
-        throw new Error(json?.error || json?.message || text || `HTTP ${captionsRes.status}`)
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json?.error || JSON.stringify(json) || `HTTP ${res.status}`)
       }
-      setTestResult(json ?? text)
+      setTestResult(json)
     } catch (err: any) {
       setTestError(err.message || 'Request failed')
     }
-    setTestStatus(null)
     setTestLoading(false)
   }
 
@@ -600,32 +550,6 @@ export default function FlavorDetailPage() {
         </div>
 
         <div className="border border-[#e0e0e0] dark:border-[#2a2a2a] p-5 space-y-4 bg-[#fafafa] dark:bg-[#0f0f0f]">
-          {/* API endpoint config */}
-          <div>
-            <button
-              onClick={() => setShowApiConfig(!showApiConfig)}
-              className="text-[10px] text-[#aaa] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white tracking-widest uppercase transition-colors"
-            >
-              {showApiConfig ? '▼ API Config' : '▶ API Config'}
-            </button>
-            {showApiConfig && (
-              <div className="mt-2">
-                <label className="text-[10px] text-[#888] dark:text-[#444] tracking-widest uppercase block mb-1">
-                  API Base URL
-                </label>
-                <input
-                  value={apiBase}
-                  onChange={(e) => setApiBase(e.target.value)}
-                  className={inputCls}
-                  placeholder="https://api.almostcrackd.ai"
-                />
-                <p className="text-[9px] text-[#bbb] dark:text-[#444] mt-1">
-                  POST {apiBase}/pipeline/generate-captions — body: {'{ imageId, humorFlavorId }'}
-                </p>
-              </div>
-            )}
-          </div>
-
           {/* Upload a new image */}
           <div>
             <label className="text-[10px] text-[#888] dark:text-[#444] tracking-widest uppercase block mb-2">
@@ -686,11 +610,7 @@ export default function FlavorDetailPage() {
             disabled={testLoading || (!testFile && !testImageUrl) || steps.length === 0}
             className={`${btnPrimary} px-6 py-2`}
           >
-            {testLoading
-              ? (testStatus ?? 'Generating...')
-              : steps.length === 0
-              ? 'Add steps first'
-              : 'Generate Captions'}
+            {testLoading ? 'Generating...' : steps.length === 0 ? 'Add steps first' : 'Generate Captions'}
           </button>
 
           {/* Results */}
