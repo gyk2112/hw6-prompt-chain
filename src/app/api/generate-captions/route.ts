@@ -1,14 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 const API_BASE = 'https://api.almostcrackd.ai'
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session!.access_token
+  const { imageFile, imageUrl: existingImageUrl, humorFlavorId, token } = await request.json()
 
-  const { imageFile, imageUrl: existingImageUrl, humorFlavorId } = await request.json()
+  if (!token) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
 
   let resolvedImageUrl: string
 
@@ -53,7 +52,12 @@ export async function POST(request: Request) {
     const t = await registerRes.text()
     return NextResponse.json({ error: `Image registration failed: ${t}` }, { status: 502 })
   }
-  const { imageId } = await registerRes.json()
+  const registerJson = await registerRes.json()
+  const imageId = registerJson.imageId
+
+  if (!imageId) {
+    return NextResponse.json({ error: `Registration returned no imageId: ${JSON.stringify(registerJson)}` }, { status: 502 })
+  }
 
   // Step 4: Generate captions
   const captionsRes = await fetch(`${API_BASE}/pipeline/generate-captions`, {
@@ -64,7 +68,10 @@ export async function POST(request: Request) {
   const captions = await captionsRes.json()
 
   if (!captionsRes.ok) {
-    return NextResponse.json(captions, { status: captionsRes.status })
+    return NextResponse.json(
+      { error: `generate-captions failed (${captionsRes.status}): ${JSON.stringify(captions)}` },
+      { status: captionsRes.status }
+    )
   }
   return NextResponse.json(captions)
 }
