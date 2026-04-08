@@ -626,13 +626,13 @@ export default function FlavorDetailPage() {
               <div className="text-[10px] text-[#888] dark:text-[#555] tracking-[0.3em] uppercase">
                 Result
               </div>
-              {/* Show captions array if present */}
-              {Array.isArray(testResult?.captions) && testResult.captions.length > 0 ? (
+              {/* Show captions — API returns an array of caption records */}
+              {Array.isArray(testResult) && testResult.length > 0 ? (
                 <div className="space-y-2">
-                  {testResult.captions.map((caption: string, i: number) => (
-                    <div key={i} className="border border-[#e0e0e0] dark:border-[#1e1e1e] p-3 bg-white dark:bg-[#0a0a0a]">
+                  {testResult.map((caption: any, i: number) => (
+                    <div key={caption.id ?? i} className="border border-[#e0e0e0] dark:border-[#1e1e1e] p-3 bg-white dark:bg-[#0a0a0a]">
                       <span className="text-[10px] text-[#bbb] dark:text-[#444] tabular-nums mr-2">{i + 1}.</span>
-                      <span className="text-sm text-[#0a0a0a] dark:text-white">{caption}</span>
+                      <span className="text-sm text-[#0a0a0a] dark:text-white">{caption.content ?? JSON.stringify(caption)}</span>
                     </div>
                   ))}
                 </div>
