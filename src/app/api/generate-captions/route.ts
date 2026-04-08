@@ -1,13 +1,18 @@
+import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 const API_BASE = 'https://api.almostcrackd.ai'
 
 export async function POST(request: Request) {
-  const { imageFile, imageUrl: existingImageUrl, humorFlavorId, token } = await request.json()
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
 
   if (!token) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
+
+  const { imageFile, imageUrl: existingImageUrl, humorFlavorId } = await request.json()
 
   let resolvedImageUrl: string
 
