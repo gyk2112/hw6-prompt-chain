@@ -23,6 +23,8 @@ export default function HumorFlavorsPage() {
   const [createForm, setCreateForm] = useState({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
+  const [duplicateName, setDuplicateName] = useState('')
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -76,6 +78,70 @@ export default function HumorFlavorsPage() {
     const { error } = await supabase.from('humor_flavors').update(payload).eq('id', editingId)
     if (error) setError(error.message)
     else { setEditingId(null); fetchFlavors() }
+    setSaving(false)
+  }
+
+  const startDuplicate = (flavor: HumorFlavor) => {
+    setDuplicatingId(flavor.id)
+    setDuplicateName(`${flavor.description ?? flavor.slug ?? ''} (copy)`)
+  }
+
+  const duplicateFlavor = async (sourceFlavor: HumorFlavor) => {
+    if (!duplicateName.trim()) return
+    setSaving(true)
+    // Create the new flavor record
+    const { data: newFlavor, error: flavorErr } = await supabase
+      .from('humor_flavors')
+      .insert({
+        description: duplicateName.trim(),
+        slug: sourceFlavor.slug ?? null,
+        created_by_user_id: userId!,
+        modified_by_user_id: userId!,
+      })
+      .select()
+      .single()
+    if (flavorErr || !newFlavor) {
+      setError(flavorErr?.message ?? 'Failed to create duplicate flavor')
+      setSaving(false)
+      return
+    }
+
+    // Fetch all steps from the source flavor
+    const { data: sourceSteps, error: stepsErr } = await supabase
+      .from('humor_flavor_steps')
+      .select('*')
+      .eq('humor_flavor_id', sourceFlavor.id)
+      .order('order_by', { ascending: true })
+    if (stepsErr) {
+      setError(stepsErr.message)
+      setSaving(false)
+      return
+    }
+
+    // Insert copies of all steps under the new flavor, stripping meta cols
+    const META = ['id', 'created_at', 'updated_at', 'created_datetime_utc', 'updated_datetime_utc', 'modified_datetime_utc', 'created_by_user_id', 'modified_by_user_id']
+    if (sourceSteps && sourceSteps.length > 0) {
+      const stepCopies = sourceSteps.map((step) => {
+        const copy: Record<string, any> = {}
+        Object.entries(step).forEach(([k, v]) => {
+          if (!META.includes(k)) copy[k] = v
+        })
+        copy.humor_flavor_id = newFlavor.id
+        copy.created_by_user_id = userId!
+        copy.modified_by_user_id = userId!
+        return copy
+      })
+      const { error: insertErr } = await supabase.from('humor_flavor_steps').insert(stepCopies)
+      if (insertErr) {
+        setError(insertErr.message)
+        setSaving(false)
+        return
+      }
+    }
+
+    setDuplicatingId(null)
+    setDuplicateName('')
+    fetchFlavors()
     setSaving(false)
   }
 
@@ -204,6 +270,40 @@ export default function HumorFlavorsPage() {
                     </button>
                   </div>
                 </div>
+              ) : duplicatingId === flavor.id ? (
+                <div className="space-y-3">
+                  <div className="text-[10px] text-[#aaa] dark:text-[#444] tracking-[0.3em] uppercase">
+                    Duplicate &ldquo;{flavor.description ?? flavor.slug ?? flavor.id}&rdquo;
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#888] dark:text-[#444] tracking-widest uppercase block mb-1">
+                      New Name *
+                    </label>
+                    <input
+                      value={duplicateName}
+                      onChange={(e) => setDuplicateName(e.target.value)}
+                      placeholder="Enter a unique name..."
+                      className={inputCls}
+                      onKeyDown={(e) => e.key === 'Enter' && duplicateFlavor(flavor)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => duplicateFlavor(flavor)}
+                      disabled={saving || !duplicateName.trim()}
+                      className={btnPrimary}
+                    >
+                      {saving ? 'Duplicating...' : 'Duplicate'}
+                    </button>
+                    <button
+                      onClick={() => { setDuplicatingId(null); setDuplicateName('') }}
+                      className="text-[10px] tracking-widest uppercase text-[#aaa] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white px-3 py-1.5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -234,6 +334,12 @@ export default function HumorFlavorsPage() {
                       className="text-[10px] text-[#aaa] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white tracking-widest uppercase transition-colors"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => startDuplicate(flavor)}
+                      className="text-[10px] text-[#aaa] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white tracking-widest uppercase transition-colors"
+                    >
+                      Duplicate
                     </button>
                     <button
                       onClick={() => deleteFlavor(flavor.id, flavor.description ?? flavor.slug ?? String(flavor.id))}

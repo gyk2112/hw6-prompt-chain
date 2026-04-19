@@ -30,8 +30,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({ contentType }),
     })
     if (!presignedRes.ok) {
-      const t = await presignedRes.text()
-      return NextResponse.json({ error: `Presigned URL failed: ${t}` }, { status: 502 })
+      return NextResponse.json({ error: 'Failed to generate upload URL' }, { status: 502 })
     }
     const { presignedUrl, cdnUrl } = await presignedRes.json()
 
@@ -54,15 +53,9 @@ export async function POST(request: Request) {
     body: JSON.stringify({ imageUrl: resolvedImageUrl, isCommonUse: false }),
   })
   if (!registerRes.ok) {
-    const t = await registerRes.text()
-    return NextResponse.json({ error: `Image registration failed: ${t}` }, { status: 502 })
+    return NextResponse.json({ error: 'Failed to register image' }, { status: 502 })
   }
-  const registerJson = await registerRes.json()
-  const imageId = registerJson.imageId
-
-  if (!imageId) {
-    return NextResponse.json({ error: `Registration returned no imageId: ${JSON.stringify(registerJson)}` }, { status: 502 })
-  }
+  const { imageId } = await registerRes.json()
 
   // Step 4: Generate captions
   const captionsRes = await fetch(`${API_BASE}/pipeline/generate-captions`, {
@@ -71,12 +64,5 @@ export async function POST(request: Request) {
     body: JSON.stringify({ imageId, humorFlavorId }),
   })
   const captions = await captionsRes.json()
-
-  if (!captionsRes.ok) {
-    return NextResponse.json(
-      { error: `generate-captions failed (${captionsRes.status}): ${JSON.stringify(captions)}` },
-      { status: captionsRes.status }
-    )
-  }
-  return NextResponse.json(captions)
+  return NextResponse.json(captions, { status: captionsRes.status })
 }
