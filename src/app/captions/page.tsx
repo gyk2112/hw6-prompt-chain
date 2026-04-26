@@ -88,8 +88,6 @@ export default function CaptionsPage() {
     fetchCaptions()
   }, [selectedFlavorId])
 
-  const SKIP_DISPLAY = ['id', 'profile_id', 'image_id', 'humor_flavor_id', 'created_by_user_id', 'modified_by_user_id']
-
   const getFlavorDisplayName = (f: HumorFlavor) =>
     f.description ?? f.slug ?? String(f.id)
 
@@ -118,7 +116,7 @@ export default function CaptionsPage() {
             onChange={(e) => setSelectedFlavorId(e.target.value)}
             className="bg-transparent border border-[#ddd] dark:border-[#333] text-[#0a0a0a] dark:text-white text-xs px-3 py-2 focus:outline-none focus:border-[#555] dark:focus:border-[#666] min-w-[220px]"
           >
-            <option value="all">All captions</option>
+            <option value="all">All flavors</option>
             {flavors.map((f) => (
               <option key={f.id} value={f.id}>
                 {getFlavorDisplayName(f)}
